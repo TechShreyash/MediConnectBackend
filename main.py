@@ -64,28 +64,19 @@ async def api_auth(request: Request):
     return results
 
 @app.post("/api/shops")
-async def api_shops(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        token = credentials.credentials
-        decoded_payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        
-        data: dict = await request.json()
-        logger.info(f"Shops Data: {data}")
+async def api_shops(request: Request):
+    data: dict = await request.json()
+    logger.info(f"Shops Data: {data}")
 
-        request_type: Literal["get_shops"] = data.get("request_type")
-        medicine_name = data.get("medicine_name")
-        medicine_name = unquote(medicine_name)
-        user_location = data.get("user_location")
+    request_type: Literal["get_shops"] = data.get("request_type")
+    medicine_name = data.get("medicine_name")
+    medicine_name = unquote(medicine_name)
+    user_location = data.get("user_location")
 
-        if request_type == "get_shops":
-            results = await database.get_shops(medicine_name, user_location)
+    if request_type == "get_shops":
+        results = await database.get_shops(medicine_name, user_location)
 
-        return results
-    
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    return results
 
 @app.post("/api/medicine")
 async def api_med(request: Request):
@@ -112,24 +103,15 @@ async def api_med(request: Request):
     return results
 
 @app.post("/api/buy")
-async def api_buy(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        token = credentials.credentials
-        decoded_payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        
-        data: dict = await request.json()
-        logger.info(f"Med_data: {data}")
+async def api_buy(request: Request):
+    data: dict = await request.json()
+    logger.info(f"Med_data: {data}")
 
-        request_type: Literal["buy_med"] = data.get("request_type")
-        email: str = data.get("email")
-        medicine_id: int = data.get("medicine_id")
-        sold_quantity: int = data.get("sold_quantity")
+    request_type: Literal["buy_med"] = data.get("request_type")
+    email: str = data.get("email")
+    medicine_id: int = data.get("medicine_id")
+    sold_quantity: int = data.get("sold_quantity")
 
-        if request_type == "buy_med":
-            results = await database.buy_medicines(email, medicine_id, sold_quantity)
-        return results
-    
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    if request_type == "buy_med":
+        results = await database.buy_medicines(email, medicine_id, sold_quantity)
+    return results
