@@ -1,2 +1,4 @@
 config.py
 *.pyc
+.env
+.DS_Store

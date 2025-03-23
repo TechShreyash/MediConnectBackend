@@ -1,12 +1,18 @@
 from urllib.parse import unquote
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
 from typing import Literal
 from utils import database
 from utils.logger import Logger
+from fastapi import FastAPI, Request, HTTPException, Depends
+from datetime import datetime, timedelta, timezone
 
 app = FastAPI()
 logger = Logger(__name__)
+SECRET_KEY = "your_secret_key"
+security = HTTPBearer()
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,44 +28,64 @@ async def root():
     return {"status": "Api Is Running"}
 
 
+def generate_jwt(email: str):
+    payload = {
+        "user": email,
+        "exp": datetime.now(timezone.utc) + timedelta(hours=24)
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return token
+
 @app.post("/api/auth")
 async def api_auth(request: Request):
     data: dict = await request.json()
     logger.info(f"Auth Data: {data}")
 
-    request_type: Literal["new_auth", "check_auth", "get_shops"] = data.get(
-        "request_type"
-    )
+    request_type: Literal["new_auth", "check_auth", "get_shops"] = data.get("request_type")
     email: str = data.get("email")
     password: str = data.get("password")
 
     if request_type == "new_auth":
         results = await database.new_auth(email, data)
+        if results.get("status") == "True":
+            token = generate_jwt(email)
+            results["token"] = token
     elif request_type == "check_auth":
         results = await database.check_auth(email, password)
+        if not results:
+            return {"status": "False", "message": "No data returned from check_auth"}
+        if results.get("status") == "True":
+            token = generate_jwt(email)
+            results["token"] = token
+        return results
     elif request_type == "check_account_type":
         results = await database.check_account_type(email)
 
     return results
 
-
 @app.post("/api/shops")
-async def api_shops(request: Request):
-    data: dict = await request.json()
-    logger.info(f"Shops Data: {data}")
+async def api_shops(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        token = credentials.credentials
+        decoded_payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        
+        data: dict = await request.json()
+        logger.info(f"Shops Data: {data}")
 
-    request_type: Literal["get_shops"] = data.get("request_type")
+        request_type: Literal["get_shops"] = data.get("request_type")
+        medicine_name = data.get("medicine_name")
+        medicine_name = unquote(medicine_name)
+        user_location = data.get("user_location")
 
-    medicine_name = data.get("medicine_name")
-    medicine_name = unquote(medicine_name)
+        if request_type == "get_shops":
+            results = await database.get_shops(medicine_name, user_location)
 
-    user_location = data.get("user_location")
-
-    if request_type == "get_shops":
-        results = await database.get_shops(medicine_name, user_location)
-
-    return results
-
+        return results
+    
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 @app.post("/api/medicine")
 async def api_med(request: Request):
@@ -70,32 +96,40 @@ async def api_med(request: Request):
     email: str = data.get("email")
     Med_data: dict = data.get("Med_data")
 
+    results = None  # Initialize results
+
     if request_type == "add_med":
         results = await database.add_medicine(email, Med_data)
-
     elif request_type == "update_med":
         results = await database.update_medicine(email, Med_data)
     elif request_type == "get_med":
         results = await database.get_medicines(email)
     elif request_type == "get_all_med":
         results = await database.get_all_medicine()
-
     elif request_type == "delete_med":
-        results = await database.delete_medicine(email,data.get('id'))
+        results = await database.delete_medicine(email, data.get('id'))
 
     return results
-
 
 @app.post("/api/buy")
-async def api_buy(request: Request):
-    data: dict = await request.json()
-    logger.info(f"Med_data: {data}")
+async def api_buy(request: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        token = credentials.credentials
+        decoded_payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        
+        data: dict = await request.json()
+        logger.info(f"Med_data: {data}")
 
-    request_type: Literal["buy_med"] = data.get("request_type")
-    email: str = data.get("email")
-    medicine_id: int = data.get("medicine_id")
-    sold_quantity: int = data.get("sold_quantity")
+        request_type: Literal["buy_med"] = data.get("request_type")
+        email: str = data.get("email")
+        medicine_id: int = data.get("medicine_id")
+        sold_quantity: int = data.get("sold_quantity")
 
-    if request_type == "buy_med":
-        results = await database.buy_medicines(email, medicine_id, sold_quantity)
-    return results
+        if request_type == "buy_med":
+            results = await database.buy_medicines(email, medicine_id, sold_quantity)
+        return results
+    
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")

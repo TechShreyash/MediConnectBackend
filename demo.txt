@@ -1,0 +1,47 @@
+// security on main
+@app.post("/api/medicine")
+async def api_med(request: Request):
+    data: dict = await request.json()
+    logger.info(f"Med_data: {data}")
+
+    request_type: Literal["update_med", "get_med", "add_med","delete_med"] = data.get("request_type")
+    email: str = data.get("email")
+    Med_data: dict = data.get("Med_data")
+
+    if request_type == "add_med":
+        results = await database.add_medicine(email, Med_data)
+    elif request_type == "update_med":
+        results = await database.update_medicine(email, Med_data)
+    elif request_type == "get_med":
+        results = await database.get_medicines(email)
+    elif request_type == "get_all_med":
+        results = await database.get_all_medicine()
+    elif request_type == "delete_med":
+        results = await database.delete_medicine(email, data.get('id'))
+
+    return results
+
+
+// on database 
+async def add_medicine(email: str, data: dict):
+    await ACCOUNTDB.update_one(
+        {"email": email}, {"$push": {"medicine": data}}, upsert=True
+    )
+    return {"status": True, "message": "Medicine added"}
+
+
+async def update_medicine(email: str, data: dict):
+    await ACCOUNTDB.update_one(
+        {"email": email, "medicine.id": data["id"]},
+        {"$set": {"medicine.$": data}},
+        upsert=True,
+    )
+    return {"status": True, "message": "Medicine updated"}
+
+
+async def get_medicines(email: str):
+    shop_data = await ACCOUNTDB.find_one({"email": email})
+    if shop_data:
+        if shop_data.get("medicine", []) != []:
+            return {"status": True, "medicine": shop_data["medicine"]}
+    return {"status": True, "medicine": []}
