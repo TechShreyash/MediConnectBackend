@@ -181,7 +181,7 @@ async def buy_medicines(
             medicine_name = i["name"]
             break
 
-    result = await ACCOUNTDB.update_one(
+    await ACCOUNTDB.update_one(
         {"email": email, "medicine.id": int(medicine_id)},
         {
             "$inc": {
@@ -202,22 +202,13 @@ async def buy_medicines(
         upsert=True,
     )
 
-    await ACCOUNTDB.update_one(
-        {"email": user_mail},
-        {
-            "$push": {
-                "orders": {
-                    "id": int(medicine_id),
-                    "medicine": medicine_name,
-                    "quantity": int(sold_quantity),
-                    "date": cdate,
-                    "time": ctime,
-                    "status": "Delivered",
-                }
-            },
-        },
-        upsert=True,
-    )
+    print(user_mail)
+
+    # await ACCOUNTDB.update_one(
+    #     {"email": user_mail},
+    #     {"$inc": {"orders.$[elem].quantity": int(sold_quantity)}},
+    #     array_filters=[{"elem.medicine": medicine_name}],
+    # )
 
     return {"status": True, "message": "Medicine Sold"}
 
