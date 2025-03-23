@@ -8,6 +8,7 @@ from utils import database
 from utils.logger import Logger
 from fastapi import FastAPI, Request, HTTPException, Depends
 from datetime import datetime, timedelta, timezone
+from google import genai
 
 app = FastAPI()
 logger = Logger(__name__)
@@ -22,6 +23,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+client = genai.Client(api_key="AIzaSyCulYZDjvxoLbu1qXC4375rX2XYExbUNR8")
+
+
+@app.post("/api/askai")
+async def health_advisor(request: Request):
+    data: dict = await request.json()
+    logger.info(f"Health Advisor Request: {data}")
+
+    user_prompt = data.get("prompt", "")
+    if not user_prompt:
+        return {"status": "False", "message": "No prompt provided"}
+
+    # Create a health instructor prompt
+    health_prompt = f"""As a pharmacist, provide accurate and helpful advice on the following:
+    
+    {user_prompt}
+    
+    Focus only on general wellness information, exercise guidance, nutrition basics, and healthy habits. 
+    Do not provide medical diagnoses or treatment recommendations and advice to seek medical professionals for medical conditions.
+    [keep the text format in paragraph dont format text.]
+    """
+
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.0-flash", contents=health_prompt
+        )
+        return {"status": "True", "response": response.text}
+    except Exception as e:
+        logger.error(f"Error generating health advice: {str(e)}")
+        return {"status": "False", "message": f"Error generating health advice: {str(e)}"}
+
 
 @app.get("/")
 async def root():
@@ -29,19 +61,19 @@ async def root():
 
 
 def generate_jwt(email: str):
-    payload = {
-        "user": email,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=24)
-    }
+    payload = {"user": email, "exp": datetime.now(timezone.utc) + timedelta(hours=24)}
     token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
     return token
+
 
 @app.post("/api/auth")
 async def api_auth(request: Request):
     data: dict = await request.json()
     logger.info(f"Auth Data: {data}")
 
-    request_type: Literal["new_auth", "check_auth", "get_shops"] = data.get("request_type")
+    request_type: Literal["new_auth", "check_auth", "get_shops"] = data.get(
+        "request_type"
+    )
     email: str = data.get("email")
     password: str = data.get("password")
 
@@ -63,6 +95,7 @@ async def api_auth(request: Request):
 
     return results
 
+
 @app.post("/api/shops")
 async def api_shops(request: Request):
     data: dict = await request.json()
@@ -78,12 +111,15 @@ async def api_shops(request: Request):
 
     return results
 
+
 @app.post("/api/medicine")
 async def api_med(request: Request):
     data: dict = await request.json()
     logger.info(f"Med_data: {data}")
 
-    request_type: Literal["update_med", "get_med", "add_med","delete_med"] = data.get("request_type")
+    request_type: Literal["update_med", "get_med", "add_med", "delete_med"] = data.get(
+        "request_type"
+    )
     email: str = data.get("email")
     Med_data: dict = data.get("Med_data")
 
@@ -95,12 +131,15 @@ async def api_med(request: Request):
         results = await database.update_medicine(email, Med_data)
     elif request_type == "get_med":
         results = await database.get_medicines(email)
+    elif request_type == "get_orders":
+        results = await database.get_orders(email)
     elif request_type == "get_all_med":
         results = await database.get_all_medicine()
     elif request_type == "delete_med":
-        results = await database.delete_medicine(email, data.get('id'))
+        results = await database.delete_medicine(email, data.get("id"))
 
     return results
+
 
 @app.post("/api/buy")
 async def api_buy(request: Request):

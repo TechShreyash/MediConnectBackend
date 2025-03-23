@@ -1,3 +1,4 @@
+from datetime import datetime
 import certifi
 import math
 import jwt
@@ -13,7 +14,7 @@ logger.info("Connecting to MongoDB")
 DB = AsyncIOMotorClient(
     "mongodb+srv://somya15:Somya%401528@somya15.wl3vu.mongodb.net/",
     tls=True,
-    tlsCAFile=certifi.where()
+    tlsCAFile=certifi.where(),
 )["MediConnect"]
 logger.info("Connected to MongoDB")
 
@@ -42,14 +43,16 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return round(R * c, 2)
 
+
 async def new_auth(email: str, data, token: str = None):
-        if token:
-            decode_token(token)
-        if await ACCOUNTDB.find_one({"email": email}):
-            return {"status": False, "token": ""}
-        await ACCOUNTDB.insert_one(data)
-        new_token = jwt.encode({"email": email}, SECRET_KEY, algorithm="HS256")
-        return {"status": True, "token": new_token}
+    if token:
+        decode_token(token)
+    if await ACCOUNTDB.find_one({"email": email}):
+        return {"status": False, "token": ""}
+    await ACCOUNTDB.insert_one(data)
+    new_token = jwt.encode({"email": email}, SECRET_KEY, algorithm="HS256")
+    return {"status": True, "token": new_token}
+
 
 async def check_auth(email: str, password: str, token: str = None):
     if token:
@@ -60,12 +63,14 @@ async def check_auth(email: str, password: str, token: str = None):
         return {"status": True, "token": new_token}
     return {"status": False, "token": ""}
 
+
 async def check_account_type(email: str):
     acc = await ACCOUNTDB.find_one({"email": email})
     if acc:
         new_token = jwt.encode({"email": email}, SECRET_KEY, algorithm="HS256")
         return {"status": True, "type": acc["type"], "token": new_token}
     return {"status": False, "message": "Email not found"}
+
 
 async def get_shops(medicine_name, user_location, token: str = None):
     if token:
@@ -97,11 +102,13 @@ async def get_shops(medicine_name, user_location, token: str = None):
     shops.sort(key=lambda x: x["distance"])
     return {"status": True, "shops": shops}
 
+
 async def update_account(email: str, data: dict, token: str = None):
     if token:
         decode_token(token)
     await ACCOUNTDB.update_one({"email": email}, {"$set": data}, upsert=True)
     return {"status": True, "message": "Account Updated"}
+
 
 async def get_account(email: str, token: str = None):
     if token:
@@ -111,6 +118,7 @@ async def get_account(email: str, token: str = None):
         return {"status": True, "data": account}
     return {"status": False, "message": "Email not found"}
 
+
 async def add_medicine(email: str, data: dict, token: str = None):
     if token:
         decode_token(token)
@@ -119,15 +127,17 @@ async def add_medicine(email: str, data: dict, token: str = None):
     )
     return {"status": True, "message": "Medicine added"}
 
+
 async def update_medicine(email: str, data: dict, token: str = None):
     if token:
         decode_token(token)
     await ACCOUNTDB.update_one(
         {"email": email, "medicine.id": data["id"]},
-        {"$set": {"medicine.$": data}},
+        {"$set": {"medicine.$.quantity": data["quantity"]}},
         upsert=True,
     )
     return {"status": True, "message": "Medicine updated"}
+
 
 async def get_medicines(email: str, token: str = None):
     if token:
@@ -135,21 +145,64 @@ async def get_medicines(email: str, token: str = None):
     shop_data = await ACCOUNTDB.find_one({"email": email})
     return {
         "status": True,
-        "medicine": shop_data.get("medicine", []) if shop_data else []
+        "medicine": shop_data.get("medicine", []) if shop_data else [],
     }
 
-async def buy_medicines(email: str, medicine_id: int, sold_quantity: int, token: str = None):
+
+async def get_orders(email: str, token: str = None):
     if token:
         decode_token(token)
-    await ACCOUNTDB.update_one(
+    shop_data = await ACCOUNTDB.find_one({"email": email})
+    data = {
+        "status": True,
+        "orders": shop_data.get("orders", []) if shop_data else [],
+    }
+    data["orders"].reverse()
+    return data
+
+
+async def buy_medicines(
+    email: str,
+    medicine_id: int,
+    sold_quantity: int,
+    token: str = None,
+):
+    if token:
+        decode_token(token)
+
+    ctime = datetime.now().strftime("%H:%M:%S")
+    cdate = datetime.now().strftime("%Y-%m-%d")  # Adjust the date format as needed
+
+    medi = await ACCOUNTDB.find_one({"email": email, "medicine.id": int(medicine_id)})
+
+    for i in medi["medicine"]:
+        if i["id"] == int(medicine_id):
+            medicine_name = i["name"]
+            break
+
+    result = await ACCOUNTDB.update_one(
         {"email": email, "medicine.id": int(medicine_id)},
-        {"$inc": {
-            "medicine.$.quantity": (-1) * int(sold_quantity),
-            "medicine.$.units_sold": int(sold_quantity),
-        }},
+        {
+            "$inc": {
+                "medicine.$.quantity": -int(sold_quantity),
+                "medicine.$.units_sold": int(sold_quantity),
+            },
+            "$push": {
+                "orders": {
+                    "id": int(medicine_id),
+                    "medicine": medicine_name,
+                    "quantity": int(sold_quantity),
+                    "date": cdate,
+                    "time": ctime,
+                    "status": "Delivered",
+                }
+            },
+        },
         upsert=True,
     )
+
     return {"status": True, "message": "Medicine Sold"}
+
 
 async def get_all_medicine():
     medicines = []
