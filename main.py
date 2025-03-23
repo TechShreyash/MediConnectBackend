@@ -52,7 +52,10 @@ async def health_advisor(request: Request):
         return {"status": "True", "response": response.text}
     except Exception as e:
         logger.error(f"Error generating health advice: {str(e)}")
-        return {"status": "False", "message": f"Error generating health advice: {str(e)}"}
+        return {
+            "status": "False",
+            "message": f"Error generating health advice: {str(e)}",
+        }
 
 
 @app.get("/")
@@ -148,9 +151,10 @@ async def api_buy(request: Request):
 
     request_type: Literal["buy_med"] = data.get("request_type")
     email: str = data.get("email")
+    user_mail: str = data.get("user_mail")
     medicine_id: int = data.get("medicine_id")
     sold_quantity: int = data.get("sold_quantity")
 
     if request_type == "buy_med":
-        results = await database.buy_medicines(email, medicine_id, sold_quantity)
+        results = await database.buy_medicines(email, medicine_id, sold_quantity,user_mail)
     return results

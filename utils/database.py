@@ -165,6 +165,7 @@ async def buy_medicines(
     email: str,
     medicine_id: int,
     sold_quantity: int,
+    user_mail: str,
     token: str = None,
 ):
     if token:
@@ -187,6 +188,23 @@ async def buy_medicines(
                 "medicine.$.quantity": -int(sold_quantity),
                 "medicine.$.units_sold": int(sold_quantity),
             },
+            "$push": {
+                "orders": {
+                    "id": int(medicine_id),
+                    "medicine": medicine_name,
+                    "quantity": int(sold_quantity),
+                    "date": cdate,
+                    "time": ctime,
+                    "status": "Delivered",
+                }
+            },
+        },
+        upsert=True,
+    )
+
+    await ACCOUNTDB.update_one(
+        {"email": user_mail},
+        {
             "$push": {
                 "orders": {
                     "id": int(medicine_id),
