@@ -12,7 +12,7 @@ logger = Logger(__name__)
 
 logger.info("Connecting to MongoDB")
 DB = AsyncIOMotorClient(
-    "mongodb+srv://somya15:Somya%401528@somya15.wl3vu.mongodb.net/",
+    "",
     tls=True,
     tlsCAFile=certifi.where(),
 )["MediConnect"]
