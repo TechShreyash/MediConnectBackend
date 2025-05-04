@@ -23,7 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = genai.Client(api_key="AIzaSyCulYZDjvxoLbu1qXC4375rX2XYExbUNR8")
+client = genai.Client(api_key="")
 
 
 @app.post("/api/askai")
